@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strings"
 	"text/tabwriter"
 
 	"github.com/sascha-andres/mailp/internal"
@@ -16,9 +17,9 @@ import (
 )
 
 var (
-	configPath, folder string
-	mailID             string
-	debug              bool
+	configPath, folder   string
+	mailID, outputFormat string
+	debug                bool
 )
 
 const (
@@ -31,6 +32,7 @@ func init() {
 	log.SetFlags(log.LstdFlags | log.Lshortfile | log.LUTC)
 
 	flag.SetEnvPrefix(Prefix)
+	flag.StringVar(&outputFormat, "output", "json", "output format")
 	flag.StringVar(&configPath, "config", "", "path to config file")
 	flag.StringVarWithoutEnv(&folder, "folder", "INBOX", "list mails from folder")
 	flag.StringVarWithoutEnv(&mailID, "mail", "", "show mail with id")
@@ -93,8 +95,17 @@ func listFolder(connector internal.Connector) error {
 	if err != nil {
 		return err
 	}
-	for _, folder := range folders {
-		fmt.Println(folder)
+	if outputFormat == "json" {
+		data, err := json.Marshal(folders)
+		if err != nil {
+			return err
+		}
+		fmt.Printf("%s\n", data)
+	}
+	if outputFormat == "text" {
+		for _, folder := range folders {
+			fmt.Println(folder)
+		}
 	}
 	return nil
 }
@@ -107,11 +118,20 @@ func listMails(connector internal.Connector) error {
 	if err != nil {
 		return err
 	}
-	tw := tabwriter.NewWriter(os.Stdout, 0, 0, 1, ' ', 0)
-	for _, mail := range mails {
-		_, _ = tw.Write([]byte(fmt.Sprintf("%s\t%s\t%s\t%s\n", mail.ID, mail.Received, mail.From, mail.Subject)))
+	if outputFormat == "json" {
+		data, err := json.Marshal(mails)
+		if err != nil {
+			return err
+		}
+		fmt.Printf("%s\n", data)
 	}
-	_ = tw.Flush()
+	if outputFormat == "text" {
+		tw := tabwriter.NewWriter(os.Stdout, 0, 0, 1, ' ', 0)
+		for _, mail := range mails {
+			_, _ = tw.Write([]byte(fmt.Sprintf("%s\t%s\t%s\t%s\n", mail.ID, mail.Received, mail.From, mail.Subject)))
+		}
+		_ = tw.Flush()
+	}
 	return nil
 }
 
@@ -129,10 +149,18 @@ func showMail(connector internal.Connector) error {
 	if err != nil {
 		return err
 	}
-	data, err := json.Marshal(m)
-	if err != nil {
-		return err
+	if outputFormat == "json" {
+		data, err := json.Marshal(m)
+		if err != nil {
+			return err
+		}
+		fmt.Printf("%s\n", data)
 	}
-	fmt.Printf("%s\n", data)
+	if outputFormat == "text" {
+		to := strings.Join(m.To, ", ")
+		cc := strings.Join(m.Cc, ", ")
+		tw := tabwriter.NewWriter(os.Stdout, 0, 0, 1, ' ', 0)
+		_, _ = tw.Write([]byte(fmt.Sprintf("%s\t%s\t%s\t%s\t%s\t%s\n%s", m.ID, to, cc, m.Received, m.From, m.Subject, m.Body)))
+	}
 	return nil
 }
